@@ -30,7 +30,7 @@ Ensure you have the following installed:
 ## 📂 Project Structure
 
 ```
-aws-3tier-pulumi-modular/
+aws-3tier-pulumi/
 ├── Pulumi.yaml
 ├── requirements.txt
 ├── __main__.py
