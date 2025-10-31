@@ -1,0 +1,4 @@
+name: aws-3tier-pulumi
+runtime:
+  name: python
+description: 3-tier AWS VPC with ALB, IGW, NAT, EC2 (CRUD app)

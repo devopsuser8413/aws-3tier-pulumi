@@ -1,0 +1,14 @@
+# Python
+__pycache__/
+*.pyc
+venv/
+
+# Pulumi
+.Pulumi/
+*.bak
+Pulumi.*.yaml
+
+# OS / IDE
+.DS_Store
+.idea/
+.vscode/
