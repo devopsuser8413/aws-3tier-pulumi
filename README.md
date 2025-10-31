@@ -1,186 +1,282 @@
-# 🏗️ Modular Pulumi AWS 3-Tier Infrastructure (ap-southeast-1)
+# 🏗️ AWS 3-Tier Infrastructure with Pulumi (Python)
 
-This project provisions a **3-tier AWS architecture** using **Pulumi (Python)** in a **modular structure**.  
-It also deploys a simple **Flask CRUD Application** to manage Indian state data (population, religion, and languages).
-
----
-
-## 🧱 Architecture Overview
-
-| Tier | Components | Description |
-|------|-------------|--------------|
-| **Network Layer** | VPC, 2 Public Subnets, 2 Private Subnets, IGW, NAT Gateway | Provides secure and scalable networking |
-| **Compute Layer** | EC2 Instances (Public & Private) | Hosts Flask CRUD application and bastion nodes |
-| **Load Balancer Layer** | Application Load Balancer (ALB) | Routes traffic to private EC2 app instances |
-| **Security Layer** | Security Groups | Enforces access control between tiers |
+This project provisions a **complete 3-tier AWS architecture** using **Pulumi (Python)**.  
+It includes **networking, compute, security, and automation** for a **Flask CRUD application** hosted on private EC2 instances behind an **Application Load Balancer (ALB)**.  
 
 ---
 
-## ⚙️ Prerequisites
-
-Ensure you have the following installed:
-
-- **Python 3.8+**
-- **Pulumi CLI** → [Install Guide](https://www.pulumi.com/docs/install/)
-- **AWS CLI** configured with valid credentials (`aws configure`)
-- **Git** installed
-
----
-
-## 📂 Project Structure
+## 📦 Architecture Overview
 
 ```
-aws-3tier-pulumi/
-├── Pulumi.yaml
-├── requirements.txt
-├── __main__.py
-├── network/
-│   └── vpc.py
-├── security/
-│   └── security_groups.py
-├── compute/
-│   └── ec2_instances.py
-├── loadbalancer/
-│   └── alb.py
-└── app/
-    └── user_data.py
+                ┌──────────────────────────────┐
+                │          AWS Cloud           │
+                │ ┌──────────────────────────┐ │
+                │ │       VPC (10.0.0.0/16) │ │
+                │ │ ┌────────────┐ ┌────────┐│ │
+   Internet --->│ │ │ Public SN1 │ │ Pub SN2││ │
+                │ │ │ Bastion EC2│ │ Bastion││ │
+                │ │ └────┬───────┘ └────────┘│ │
+                │ │      │  (via IGW)        │ │
+                │ │   ┌───────────────┐      │ │
+                │ │   │   ALB (HTTP)  │────┐ │ │
+                │ │   └───────────────┘    │ │ │
+                │ │ ┌────────────┐ ┌────────┐│ │
+                │ │ │ Private SN1│ │Priv SN2││ │
+                │ │ │ Flask EC2s │ │ Flask  ││ │
+                │ │ └────────────┘ └────────┘│ │
+                │ └──────────────────────────┘ │
+                └──────────────────────────────┘
 ```
 
 ---
 
-## 🪜 Step-by-Step Deployment
+## ⚙️ Components
 
-### 1️⃣ Create and Activate a Virtual Environment
+| Layer | Resource | Description |
+|--------|-----------|-------------|
+| **Network** | VPC, 2 public + 2 private subnets, IGW, NAT Gateway, Route Tables | Full 3-tier network setup |
+| **Compute** | 2 Public + 2 Private EC2 | Public = Bastion, Private = Flask app |
+| **Security** | SGs for ALB, Bastion, App EC2s | Port 22/80/5000 rules |
+| **Load Balancer** | Application Load Balancer (ALB) | Forwards traffic to Flask app |
+| **App** | Flask REST API | Simple CRUD API for demo |
+| **IaC** | Pulumi (Python) | Declarative Infrastructure as Code |
 
+---
+
+## 🚀 Prerequisites
+
+### 1️⃣ Install Required Tools
 ```bash
-python3 -m venv venv
-source venv/bin/activate      # macOS/Linux
-# or
-venv\Scripts\activate       # Windows
+sudo apt install python3 python3-venv awscli -y
+curl -fsSL https://get.pulumi.com | sh
+pip install pulumi pulumi_aws
 ```
 
-### 2️⃣ Install Dependencies
-
+### 2️⃣ Configure AWS Credentials
 ```bash
-pip install -r requirements.txt
+aws configure
+# or, if using multiple accounts
+aws configure --profile myprofile
+export AWS_PROFILE=myprofile
 ```
 
-### 3️⃣ Initialize Pulumi Stack
-
+### 3️⃣ Create and Initialize Pulumi Stack
 ```bash
 pulumi stack init dev
 pulumi config set aws:region ap-southeast-1
 ```
 
-### 4️⃣ Deploy Infrastructure
+---
+
+## 🔑 SSH Key Setup for EC2 Access
+
+### Step 1️⃣ — Create SSH Key Locally
+```bash
+mkdir -p ~/.ssh
+cd ~/.ssh
+ssh-keygen -t rsa -b 4096 -f pulumi-aws-key -N ""
+```
+
+This generates:
+- `~/.ssh/pulumi-aws-key` → **private key**
+- `~/.ssh/pulumi-aws-key.pub` → **public key**
+
+### Step 2️⃣ — Configure Pulumi Key Pair Module
+Your Pulumi code (`security/keypair.py`) should:
+- Upload your public key to AWS as an EC2 Key Pair
+- Store it as `pulumi-aws-key` in AWS
+
+---
+
+## 🌐 Network Validation: IGW and NAT Gateway
+
+After deployment, verify that:
+1. **Internet Gateway (IGW)** is attached to the **VPC**
+2. **NAT Gateway** is created in **Public Subnet 1**
+3. **Public Route Table** routes `0.0.0.0/0` to IGW
+4. **Private Route Table** routes `0.0.0.0/0` to NAT Gateway
+
+You can verify via:
+```bash
+aws ec2 describe-route-tables --filters "Name=vpc-id,Values=<your-vpc-id>" --region ap-southeast-1
+```
+
+✅ Example routes:
+```
+Destination | Target
+-------------|------------------
+10.0.0.0/16  | local
+0.0.0.0/0    | igw-xxxxxx  (for public)
+0.0.0.0/0    | nat-xxxxxx  (for private)
+```
+
+---
+
+## 💻 Connecting to EC2 Instances
+
+### Step 1️⃣ — Connect to Public EC2 (Bastion)
+```bash
+chmod 400 ~/.ssh/pulumi-aws-key
+ssh -i ~/.ssh/pulumi-aws-key ec2-user@<public-ec2-public-ip>
+```
+
+### Step 2️⃣ — Connect from Public → Private EC2
+From inside your public EC2:
+```bash
+ssh -i ~/.ssh/pulumi-aws-key ec2-user@<private-ec2-private-ip>
+```
+
+> 💡 Tip: You can list all private EC2 IPs from Pulumi outputs:
+```bash
+pulumi stack output private_instance_1_private_ip
+pulumi stack output private_instance_2_private_ip
+```
+
+If SSH to private EC2 fails:
+- Ensure `app-ec2-sg` allows port 22 **from** `public-ec2-sg`
+- Verify NAT Gateway & routing are working
+
+---
+
+## 🧱 Deploy Infrastructure
 
 ```bash
 pulumi up
 ```
 
-Confirm with `yes` when prompted.  
-Pulumi will provision all required AWS resources.
+Pulumi will:
+- Provision the VPC, subnets, gateways, security groups
+- Launch EC2 instances and ALB
+- Automatically run `user_data` to install Flask app
 
-### 5️⃣ View Outputs
-
-After deployment completes, note key outputs:
-
-```
-Outputs:
-  vpc_id  : vpc-xxxxxxxxxxxx
-  alb_dns : pulumi-alb-xxxx.ap-southeast-1.elb.amazonaws.com
+Once done, check:
+```bash
+pulumi stack output alb_dns
 ```
 
----
-
-## 🌐 Access the Flask Application
-
-Open the ALB DNS name in a browser:
-
+Then open:
 ```
 http://<alb_dns_name>/
 ```
 
-Expected Response:
+✅ Expected Output:
 ```json
 {"service": "india-states-crud", "version": "v1"}
 ```
 
 ---
 
-## 🧪 Test API Endpoints (Using cURL)
+## 🧩 Troubleshooting: ALB Not Accessible or Instances Unhealthy
 
-### ➕ Create a State
+### 1️⃣ Check Flask App Logs
 ```bash
-curl -X POST http://<alb_dns_name>/states   -H "Content-Type: application/json"   -d '{
-        "name": "Karnataka",
-        "population": 61095297,
-        "religions": ["Hinduism","Islam","Christianity"],
-        "languages": ["Kannada","Urdu","Hindi"]
-      }'
+sudo cat /var/log/flask-setup.log
+sudo systemctl status app.service
 ```
 
-### 📋 Get All States
-```bash
-curl http://<alb_dns_name>/states
+If you see:
+```
+ModuleNotFoundError: No module named 'flask'
+```
+→ pip wasn’t installed.  
+Recreate EC2s after fixing user_data.
+
+---
+
+### 2️⃣ Ensure `user_data` Is Attached & Encoded
+
+In `ec2_instances.py`:
+```python
+import base64
+
+user_data=base64.b64encode(user_data_private.encode("utf-8")).decode("utf-8")
 ```
 
-### ✏️ Update a State
+Recreate EC2s:
 ```bash
-curl -X PUT http://<alb_dns_name>/states/1   -H "Content-Type: application/json"   -d '{"population": 65000000}'
-```
-
-### ❌ Delete a State
-```bash
-curl -X DELETE http://<alb_dns_name>/states/1
+pulumi destroy --target aws:ec2/instance:Instance
+pulumi up
 ```
 
 ---
 
-## 🧰 Troubleshooting
+### 3️⃣ Check Health Checks
+Go to **EC2 → Target Groups → app-tg → Targets**  
+✅ Status: `healthy`  
+If unhealthy → Flask might not be bound to `0.0.0.0:5000`.
 
-| Issue | Possible Cause | Fix |
-|--------|----------------|-----|
-| ALB not reachable | ALB still provisioning or wrong SG rules | Wait a few minutes, verify ALB SG inbound port 80 |
-| Instances Unhealthy | Flask not running / Health check path | Ensure app runs on port 5000 and returns HTTP 200 for `/` |
-| SSM Agent not online | No NAT or SSM endpoint | Check NAT Gateway and private route tables |
-| Pulumi error | Missing dependencies | Run `pip install -r requirements.txt` |
+Fix:
+```python
+app.run(host='0.0.0.0', port=5000)
+```
 
 ---
 
-## 🧼 Cleanup Resources
+### 4️⃣ Verify Security Groups
 
-To destroy all AWS resources:
+| Group | Rule | Source |
+|--------|------|--------|
+| alb-sg | TCP 80 | 0.0.0.0/0 |
+| public-ec2-sg | TCP 22 | 0.0.0.0/0 |
+| app-ec2-sg | TCP 5000 | alb-sg |
+| app-ec2-sg | TCP 22 | public-ec2-sg |
+
+---
+
+### 5️⃣ Verify Routing
+```bash
+aws ec2 describe-route-tables --region ap-southeast-1
+```
+
+Ensure:
+- Public subnets → IGW
+- Private subnets → NAT Gateway
+
+---
+
+### 6️⃣ Validate Cloud-Init Execution
+On any private EC2:
+```bash
+sudo cat /var/log/cloud-init-output.log
+sudo journalctl -u app.service -n 20 --no-pager
+```
+
+✅ Look for:
+```
+==== Flask app setup complete ====
+```
+
+---
+
+## 🧼 Cleanup
+
+When finished:
 ```bash
 pulumi destroy
 ```
 
-To remove the Pulumi stack entirely:
-```bash
-pulumi stack rm dev
+---
+
+## ✅ Final Validation Checklist
+
+| Check | Expected |
+|--------|-----------|
+| ALB DNS accessible | ✅ Returns JSON |
+| Flask service active | ✅ systemctl active |
+| `/var/log/flask-setup.log` exists | ✅ Yes |
+| NAT Gateway active | ✅ Yes |
+| IGW attached | ✅ Yes |
+| Bastion SSH to private EC2 works | ✅ Yes |
+
+---
+
+## 🧾 Example Successful ALB Output
+
+```
+http://alb-xxxxxxxx.ap-southeast-1.elb.amazonaws.com/
 ```
 
----
-
-## 🧠 Enhancements
-
-| Feature | Description |
-|----------|--------------|
-| Use RDS instead of SQLite | For persistent database storage |
-| Enable HTTPS | Add ACM SSL certificate and ALB HTTPS listener |
-| CI/CD Pipeline | Deploy automatically using GitHub Actions |
-| Route53 Integration | Map ALB to a custom domain |
-| Auto Scaling | Add EC2 Auto Scaling Group with Launch Template |
-
----
-
-## 🧾 License
-
-MIT License © 2025 [Your Name]
-
----
-
-## 🧩 Helpful References
-- [Pulumi AWS Docs](https://www.pulumi.com/registry/packages/aws/)
-- [Flask Documentation](https://flask.palletsprojects.com/)
-- [AWS VPC Docs](https://docs.aws.amazon.com/vpc/)
+Response:
+```json
+{"service": "india-states-crud", "version": "v1"}
+```
