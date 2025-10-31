@@ -12,3 +12,5 @@ Pulumi.*.yaml
 .DS_Store
 .idea/
 .vscode/
+
+*.pem
