@@ -1,5 +1,6 @@
 import pulumi
 import pulumi_aws as aws
+import base64
 
 
 def create_instances(
@@ -47,7 +48,7 @@ def create_instances(
             associate_public_ip_address=True,
             key_name=key_name,
             # ✅ Pass user data for setup
-            user_data=user_data_public,
+            user_data=base64.b64encode(user_data_public.encode("utf-8")).decode("utf-8"),
             tags={
                 "Name": f"public-ec2-{i+1}",
                 "Tier": "public",
@@ -72,7 +73,7 @@ def create_instances(
             associate_public_ip_address=False,
             key_name=key_name,
             # ✅ Attach user data for Flask app setup
-            user_data=user_data_private,
+            user_data=base64.b64encode(user_data_private.encode("utf-8")).decode("utf-8"),
             tags={
                 "Name": f"private-ec2-{i+1}",
                 "Tier": "private",
