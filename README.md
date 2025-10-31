@@ -1,236 +1,186 @@
-# 🏗️ Pulumi AWS 3-Tier Infrastructure with Flask CRUD Application
+# 🏗️ Modular Pulumi AWS 3-Tier Infrastructure (ap-southeast-1)
 
-This project uses **Pulumi (Python)** to provision a full **3-tier architecture** on **AWS**, hosting a small Flask CRUD API that maintains information about **Indian states, population, religions, and languages**.
+This project provisions a **3-tier AWS architecture** using **Pulumi (Python)** in a **modular structure**.  
+It also deploys a simple **Flask CRUD Application** to manage Indian state data (population, religion, and languages).
 
 ---
 
 ## 🧱 Architecture Overview
 
-### 🔹 Components
 | Tier | Components | Description |
 |------|-------------|--------------|
-| **Network Layer** | VPC, 2 Public Subnets, 2 Private Subnets, IGW, NAT Gateway | Provides isolated networking across AZs |
-| **Compute Layer** | 2 EC2s in each public and private subnet | Public = bastion hosts; Private = Flask app servers |
-| **Load Balancer Layer** | Application Load Balancer (ALB) | Routes HTTP traffic to private EC2s (port 5000) |
-| **Security** | Security Groups | Restrict SSH/HTTP between tiers |
-| **App** | Flask + Gunicorn + SQLite | Simple CRUD app for states data |
+| **Network Layer** | VPC, 2 Public Subnets, 2 Private Subnets, IGW, NAT Gateway | Provides secure and scalable networking |
+| **Compute Layer** | EC2 Instances (Public & Private) | Hosts Flask CRUD application and bastion nodes |
+| **Load Balancer Layer** | Application Load Balancer (ALB) | Routes traffic to private EC2 app instances |
+| **Security Layer** | Security Groups | Enforces access control between tiers |
 
 ---
 
 ## ⚙️ Prerequisites
 
-Before you begin, ensure you have:
+Ensure you have the following installed:
 
-- 🐍 **Python 3.8+** installed
-- ☁️ **AWS CLI** configured with access keys
-- 💻 **Pulumi CLI** installed  
-  [Install Guide →](https://www.pulumi.com/docs/install/)
-- 🧰 **Git** installed
-- (Optional) **Virtual environment** for Python
+- **Python 3.8+**
+- **Pulumi CLI** → [Install Guide](https://www.pulumi.com/docs/install/)
+- **AWS CLI** configured with valid credentials (`aws configure`)
+- **Git** installed
 
 ---
 
 ## 📂 Project Structure
 
 ```
-aws-3tier-pulumi/
-├── Pulumi.yaml             # Project metadata
-├── Pulumi.dev.yaml         # Stack configuration (auto-generated)
-├── __main__.py             # Main Pulumi Python code
-├── requirements.txt        # Pulumi dependencies
-├── .gitignore
-└── README.md
+aws-3tier-pulumi-modular/
+├── Pulumi.yaml
+├── requirements.txt
+├── __main__.py
+├── network/
+│   └── vpc.py
+├── security/
+│   └── security_groups.py
+├── compute/
+│   └── ec2_instances.py
+├── loadbalancer/
+│   └── alb.py
+└── app/
+    └── user_data.py
 ```
 
 ---
 
-## 🪜 Step-by-Step Deployment Guide
+## 🪜 Step-by-Step Deployment
 
-### 1️⃣ Clone the repository
-```bash
-git clone https://github.com/<your-username>/aws-3tier-pulumi.git
-cd aws-3tier-pulumi
-```
+### 1️⃣ Create and Activate a Virtual Environment
 
----
-
-### 2️⃣ Set up a Python virtual environment
 ```bash
 python3 -m venv venv
-source venv/bin/activate      # On macOS/Linux
+source venv/bin/activate      # macOS/Linux
 # or
-venv\Scripts\activate         # On Windows
+venv\Scripts\activate       # Windows
 ```
 
----
+### 2️⃣ Install Dependencies
 
-### 3️⃣ Install dependencies
 ```bash
 pip install -r requirements.txt
 ```
 
----
-
-### 4️⃣ Configure Pulumi
-Initialize and configure your Pulumi stack:
+### 3️⃣ Initialize Pulumi Stack
 
 ```bash
-pulumi stack init dev       # (or select an existing stack)
-pulumi config set aws:region ap-south-1
-pulumi config set vpcCidr 10.0.0.0/16
-pulumi config set --path publicCidrs '["10.0.1.0/24","10.0.2.0/24"]'
-pulumi config set --path privateCidrs '["10.0.11.0/24","10.0.12.0/24"]'
-pulumi config set instanceType t3.micro
-pulumi config set perSubnetInstanceCount 2
-pulumi config set sshCidr 0.0.0.0/0
-# Optional if you have an EC2 key pair
-# pulumi config set keyName my-keypair
+pulumi stack init dev
+pulumi config set aws:region ap-southeast-1
 ```
 
-✅ Check your settings:
-```bash
-pulumi config
-```
+### 4️⃣ Deploy Infrastructure
 
----
-
-### 5️⃣ Authenticate with AWS
-Make sure your AWS CLI is configured:
-```bash
-aws configure
-```
-or use an existing profile:
-```bash
-export AWS_PROFILE=myprofile
-```
-
-Test credentials:
-```bash
-aws sts get-caller-identity
-```
-
----
-
-### 6️⃣ Deploy the stack
-Run:
 ```bash
 pulumi up
 ```
 
-Pulumi will show a preview of all AWS resources.  
-Type `yes` to confirm creation.
+Confirm with `yes` when prompted.  
+Pulumi will provision all required AWS resources.
 
----
+### 5️⃣ View Outputs
 
-### 7️⃣ View Outputs
-After deployment completes, note the output values:
+After deployment completes, note key outputs:
+
 ```
 Outputs:
-  albDnsName : "pulumi-alb-xxxxx.ap-south-1.elb.amazonaws.com"
+  vpc_id  : vpc-xxxxxxxxxxxx
+  alb_dns : pulumi-alb-xxxx.ap-southeast-1.elb.amazonaws.com
 ```
 
 ---
 
-## 🌐 Access the Application
+## 🌐 Access the Flask Application
 
-Open in browser:
+Open the ALB DNS name in a browser:
+
 ```
-http://<albDnsName>/
+http://<alb_dns_name>/
 ```
 
-You should see:
+Expected Response:
 ```json
 {"service": "india-states-crud", "version": "v1"}
 ```
 
 ---
 
-## 🧪 Test the CRUD API
-
-Use **curl** or **Postman** to test the endpoints.
+## 🧪 Test API Endpoints (Using cURL)
 
 ### ➕ Create a State
 ```bash
-curl -X POST http://<albDnsName>/states   -H "Content-Type: application/json"   -d '{
+curl -X POST http://<alb_dns_name>/states   -H "Content-Type: application/json"   -d '{
         "name": "Karnataka",
         "population": 61095297,
-        "religions": ["Hinduism","Islam","Christianity","Jainism"],
+        "religions": ["Hinduism","Islam","Christianity"],
         "languages": ["Kannada","Urdu","Hindi"]
       }'
 ```
 
-### 📋 List All States
+### 📋 Get All States
 ```bash
-curl http://<albDnsName>/states
+curl http://<alb_dns_name>/states
 ```
 
 ### ✏️ Update a State
 ```bash
-curl -X PUT http://<albDnsName>/states/1   -H "Content-Type: application/json"   -d '{"population": 65000000}'
+curl -X PUT http://<alb_dns_name>/states/1   -H "Content-Type: application/json"   -d '{"population": 65000000}'
 ```
 
 ### ❌ Delete a State
 ```bash
-curl -X DELETE http://<albDnsName>/states/1
+curl -X DELETE http://<alb_dns_name>/states/1
 ```
 
 ---
 
-## 🔍 Troubleshooting
+## 🧰 Troubleshooting
 
-### ❗ ALB not reachable
-- Wait for ALB to become **Active**
-- Ensure ALB SG allows port 80 from `0.0.0.0/0`
-- Ensure private EC2 SG allows port 5000 from ALB SG
-
-### ❗ SSM Agent not online
-- Confirm NAT Gateway is available  
-- Private route table should point `0.0.0.0/0 → NAT Gateway`
-- Restart agent:
-  ```bash
-  sudo systemctl restart amazon-ssm-agent
-  ```
+| Issue | Possible Cause | Fix |
+|--------|----------------|-----|
+| ALB not reachable | ALB still provisioning or wrong SG rules | Wait a few minutes, verify ALB SG inbound port 80 |
+| Instances Unhealthy | Flask not running / Health check path | Ensure app runs on port 5000 and returns HTTP 200 for `/` |
+| SSM Agent not online | No NAT or SSM endpoint | Check NAT Gateway and private route tables |
+| Pulumi error | Missing dependencies | Run `pip install -r requirements.txt` |
 
 ---
 
-## 🧼 Cleanup
+## 🧼 Cleanup Resources
 
-To delete all AWS resources created by this project:
+To destroy all AWS resources:
 ```bash
 pulumi destroy
 ```
 
-Then remove the stack record:
+To remove the Pulumi stack entirely:
 ```bash
 pulumi stack rm dev
 ```
 
 ---
 
-## 🧠 Notes & Enhancements
+## 🧠 Enhancements
 
-| Enhancement | Description |
-|--------------|-------------|
-| 🗄️ Use RDS instead of SQLite | Store data in MySQL/PostgreSQL via AWS RDS |
-| ⚖️ Auto Scaling | Add EC2 Auto Scaling Group with Launch Template |
-| 🔒 HTTPS | Add ACM certificate + ALB HTTPS listener |
-| 🏠 DNS | Map ALB to a custom Route53 domain |
-| ⚙️ CI/CD | Use GitHub Actions or GitLab CI for automated deploys |
+| Feature | Description |
+|----------|--------------|
+| Use RDS instead of SQLite | For persistent database storage |
+| Enable HTTPS | Add ACM SSL certificate and ALB HTTPS listener |
+| CI/CD Pipeline | Deploy automatically using GitHub Actions |
+| Route53 Integration | Map ALB to a custom domain |
+| Auto Scaling | Add EC2 Auto Scaling Group with Launch Template |
 
 ---
 
-## 📜 License
+## 🧾 License
+
 MIT License © 2025 [Your Name]
 
 ---
 
-## 🤝 Contributing
-Pull requests are welcome!  
-For major changes, please open an issue first to discuss what you’d like to change.
-
----
-
-## 🧰 Helpful Resources
+## 🧩 Helpful References
 - [Pulumi AWS Docs](https://www.pulumi.com/registry/packages/aws/)
 - [Flask Documentation](https://flask.palletsprojects.com/)
-- [AWS VPC Guide](https://docs.aws.amazon.com/vpc/)
+- [AWS VPC Docs](https://docs.aws.amazon.com/vpc/)

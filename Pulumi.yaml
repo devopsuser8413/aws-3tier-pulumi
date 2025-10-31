@@ -1,4 +1,4 @@
-name: aws-3tier-pulumi
+name: aws-3tier-pulumi-modular
 runtime:
   name: python
-description: 3-tier AWS VPC with ALB, IGW, NAT, EC2 (CRUD app)
+description: Modular Pulumi project for 3-tier AWS architecture (Singapore region)
